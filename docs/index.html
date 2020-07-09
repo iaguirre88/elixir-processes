@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Procesos en Elixir</title>
+    <meta charset="utf-8">
+    <style>
+      @import url(https://fonts.googleapis.com/css?family=Yanone+Kaffeesatz);
+      @import url(https://fonts.googleapis.com/css?family=Droid+Serif:400,700,400italic);
+      @import url(https://fonts.googleapis.com/css?family=Fira+Mono:400,500,700&display=swap);
+
+      body {
+        font-family: 'Droid Serif';
+      }
+
+      p {
+        font-size: 24px;
+      }
+
+      li {
+        margin-bottom: 8px;
+      }
+
+      h1, h2, h3 {
+        font-family: 'Yanone Kaffeesatz';
+        font-weight: normal;
+        margin-top: 45px;
+        margin-bottom: 10px;
+      }
+
+      .gray {
+        color: gray;
+      }
+
+      .remark-code, .remark-inline-code {
+        font-family: 'Fira Mono', monospace;
+        font-size: 16px;
+        line-height: 1.5em;
+        text-shadow: none;
+        border-radius: 5px;
+      }
+
+      .remark-inline-code {
+        font-family: 'Fira Mono', monospace;
+        font-size: 20px;
+        line-height: 1.5em;
+        text-shadow: none;
+        border-radius: 5px;
+      }
+
+      .remark-code-line-highlighted {
+        background-color: rgba(0, 255, 240, 0.4);
+      }
+
+      .remark-notes, p {
+        font-size: 20px;
+      }
+
+      .remark-notes-preview p {
+        font-size: 18px;
+      }
+
+    </style>
+  </head>
+  <body>
+    <textarea id="source">
+
+class: center, middle
+
+# Procesos en Elixir
+
+---
+class: center, middle
+
+# Motivación
+
+---
+# Agenda
+
+- Qué son los procesos
+- Algunas abstracciones
+- Bonus track (?)
+
+--
+
+### De qué no voy a hablar
+De supervición y monitoreos de procesos
+
+---
+# ¿Qué es un proceso?
+
+- Son procesos a nivel de usuario.
+- Gestionados por la máquina virtual de Erlang.
+- Todo código Elixir corre siempre en el contexto de un proceso.
+- Un proceso puede crear otros procesos.
+
+---
+# ¿Cómo creamos procesos en Elixir?
+
+```elixir
+pid = spawn(fn -> 1 + 2 end)
+# PID<0.106.0>
+
+Process.alive?(pid)
+# false
+```
+
+---
+## Otro ejemplo
+```elixir
+# printer.ex
+
+defmodule Printer do
+  def fun(x) do
+    :timer.sleep(1)
+    IO.puts("Value: #{x}")
+  end
+end
+
+Enum.each(1..10, fn x -> spawn(Printer, :fun, [x]) end)
+
+# Value: 1
+# Value: 2
+# Value: 4
+# Value: 9
+# Value: 5
+# Value: 6
+# Value: 3
+# Value: 8
+# Value: 7
+# Value: 10
+```
+
+---
+# Mailboxes
+Tenemos dos primitivas:
+- `send` (no bloqueante)
+- `receive` (bloqueante)
+
+```elixir
+pid = self()
+send(pid, "some message")
+send(pid, "another message")
+
+flush()
+# "some message"
+# "another message"
+```
+
+---
+count: false
+
+# Mailboxes
+Tenemos dos primitivas:
+- `send` (no bloqueante)
+- `receive` (bloqueante)
+
+```elixir
+*pid = self()
+send(pid, "some message")
+send(pid, "another message")
+
+flush()
+# "some message"
+# "another message"
+```
+
+---
+count: false
+
+# Mailboxes
+Tenemos dos primitivas:
+- `send` (no bloqueante)
+- `receive` (bloqueante)
+
+```elixir
+pid = self()
+*send(pid, "some message")
+send(pid, "another message")
+
+flush()
+# "some message"
+# "another message"
+```
+
+---
+count: false
+
+# Mailboxes
+Tenemos dos primitivas:
+- `send` (no bloqueante)
+- `receive` (bloqueante)
+
+```elixir
+pid = self()
+send(pid, "some message")
+*send(pid, "another message")
+
+flush()
+# "some message"
+# "another message"
+```
+
+---
+count: false
+
+# Mailboxes
+Tenemos dos primitivas:
+- `send` (no bloqueante)
+- `receive` (bloqueante)
+
+```elixir
+pid = self()
+send(pid, "some message")
+send(pid, "another message")
+
+*flush()
+# "some message"
+# "another message"
+```
+
+---
+## Usando el _receive_
+
+```elixir
+# consumer_1.ex
+
+defmodule Consumer do
+  def process_message() do
+    receive do
+      :hello -> IO.puts("Hello world!")
+      :bye -> IO.puts("Good bye")
+      _ -> IO.puts("No idea how to handle this")
+    after
+      10_000 -> IO.puts("Didn't get anything")
+    end
+  end
+end
+
+pid = spawn(Consumer, :process_message, [])
+send(pid, :bye)
+# Good bye
+
+pid = spawn(Consumer, :process_message, [])
+send(pid, :random)
+#  No idea how to handle this
+```
+
+---
+count: false
+
+## Usando el _receive_
+
+```elixir
+# consumer_1.ex
+
+defmodule Consumer do
+* def process_message() do
+    receive do
+      :hello -> IO.puts("Hello world!")
+      :bye -> IO.puts("Good bye")
+      _ -> IO.puts("No idea how to handle this")
+    after
+      10_000 -> IO.puts("Didn't get anything")
+    end
+  end
+end
+
+pid = spawn(Consumer, :process_message, [])
+send(pid, :bye)
+# Good bye
+
+pid = spawn(Consumer, :process_message, [])
+send(pid, :random)
+#  No idea how to handle this
+```
+
+---
+count: false
+
+## Usando el _receive_
+
+```elixir
+# consumer_1.ex
+
+defmodule Consumer do
+  def process_message() do
+*   receive do
+      :hello -> IO.puts("Hello world!")
+      :bye -> IO.puts("Good bye")
+      _ -> IO.puts("No idea how to handle this")
+    after
+      10_000 -> IO.puts("Didn't get anything")
+    end
+  end
+end
+
+pid = spawn(Consumer, :process_message, [])
+send(pid, :bye)
+# Good bye
+
+pid = spawn(Consumer, :process_message, [])
+send(pid, :random)
+#  No idea how to handle this
+```
+
+---
+count: false
+
+## Usando el _receive_
+
+```elixir
+# consumer_1.ex
+
+defmodule Consumer do
+  def process_message() do
+    receive do
+*     :hello -> IO.puts("Hello world!")
+      :bye -> IO.puts("Good bye")
+      _ -> IO.puts("No idea how to handle this")
+    after
+      10_000 -> IO.puts("Didn't get anything")
+    end
+  end
+end
+
+pid = spawn(Consumer, :process_message, [])
+send(pid, :bye)
+# Good bye
+
+pid = spawn(Consumer, :process_message, [])
+send(pid, :random)
+#  No idea how to handle this
+```
+
+---
+count: false
+
+## Usando el _receive_
+
+```elixir
+# consumer_1.ex
+
+defmodule Consumer do
+  def process_message() do
+    receive do
+      :hello -> IO.puts("Hello world!")
+*     :bye -> IO.puts("Good bye")
+      _ -> IO.puts("No idea how to handle this")
+    after
+      10_000 -> IO.puts("Didn't get anything")
+    end
+  end
+end
+
+pid = spawn(Consumer, :process_message, [])
+send(pid, :bye)
+# Good bye
+
+pid = spawn(Consumer, :process_message, [])
+send(pid, :random)
+#  No idea how to handle this
+```
+
+---
+count: false
+
+## Usando el _receive_
+
+```elixir
+# consumer_1.ex
+
+defmodule Consumer do
+  def process_message() do
+    receive do
+      :hello -> IO.puts("Hello world!")
+      :bye -> IO.puts("Good bye")
+*     _ -> IO.puts("No idea how to handle this")
+    after
+      10_000 -> IO.puts("Didn't get anything")
+    end
+  end
+end
+
+pid = spawn(Consumer, :process_message, [])
+send(pid, :bye)
+# Good bye
+
+pid = spawn(Consumer, :process_message, [])
+send(pid, :random)
+#  No idea how to handle this
+```
+
+---
+count: false
+
+## Usando el _receive_
+
+```elixir
+# consumer_1.ex
+
+defmodule Consumer do
+  def process_message() do
+    receive do
+      :hello -> IO.puts("Hello world!")
+      :bye -> IO.puts("Good bye")
+      _ -> IO.puts("No idea how to handle this")
+*   after
+*     10_000 -> IO.puts("Didn't get anything")
+*   end
+  end
+end
+
+pid = spawn(Consumer, :process_message, [])
+send(pid, :bye)
+# Good bye
+
+pid = spawn(Consumer, :process_message, [])
+send(pid, :random)
+#  No idea how to handle this
+```
+
+---
+count: false
+
+## Usando el _receive_
+
+```elixir
+# consumer_1.ex
+
+defmodule Consumer do
+  def process_message() do
+    receive do
+      :hello -> IO.puts("Hello world!")
+      :bye -> IO.puts("Good bye")
+      _ -> IO.puts("No idea how to handle this")
+    after
+      10_000 -> IO.puts("Didn't get anything")
+    end
+  end
+end
+
+pid = spawn(Consumer, :process_message, [])
+send(pid, :bye)
+# Good bye
+
+pid = spawn(Consumer, :process_message, [])
+send(pid, :random)
+#  No idea how to handle this
+```
+
+---
+## Un ejemplo un poco más serio
+
+```elixir
+# consumer_2.ex
+
+defmodule Consumer do
+  def process_message(parent) do
+    receive do
+      :hello -> send(parent, "Hello world!")
+      :bye -> send(parent, "Good bye")
+      _ -> send(parent, "No idea how to handle this")
+  end
+end
+
+pid = spawn(Consumer, :process_message, [self()])
+send(pid, :bye)
+pid = spawn(Consumer, :process_message, [self()])
+send(pid, :random)
+
+flush()
+# Good bye
+# No idea how to handle this
+```
+
+---
+class: center, middle
+
+# ¿En dónde entran los estados en todo esto?
+
+---
+## Ahora deberíamos poder entender este código
+
+```elixir
+# state.ex
+
+defmodule State do
+  def counter(number) do
+    receive do
+      :inc ->
+        counter(number + 1)
+
+      {:get, caller} ->
+        send(caller, number)
+        counter(number)
+    end
+  end
+end
+
+
+pid = spawn(State, :counter, [0])
+```
+
+---
+count: false
+
+## Ahora deberíamos poder entender este código
+
+```elixir
+# state.ex
+
+defmodule State do
+  def counter(number) do
+    receive do
+      :inc ->
+        counter(number + 1)
+
+      {:get, caller} ->
+        send(caller, number)
+        counter(number)
+    end
+  end
+end
+
+
+*pid = spawn(State, :counter, [0])
+```
+
+---
+count: false
+
+## Ahora deberíamos poder entender este código
+
+```elixir
+# state.ex
+
+defmodule State do
+* def counter(number) do
+    receive do
+      :inc ->
+        counter(number + 1)
+
+      {:get, caller} ->
+        send(caller, number)
+        counter(number)
+    end
+  end
+end
+
+
+pid = spawn(State, :counter, [0])
+```
+
+---
+count: false
+
+## Ahora deberíamos poder entender este código
+
+```elixir
+# state.ex
+
+defmodule State do
+  def counter(number) do
+*   receive do
+      :inc ->
+        counter(number + 1)
+
+      {:get, caller} ->
+        send(caller, number)
+        counter(number)
+    end
+  end
+end
+
+
+pid = spawn(State, :counter, [0])
+```
+
+---
+count: false
+
+## Ahora deberíamos poder entender este código
+
+```elixir
+# state.ex
+
+defmodule State do
+  def counter(number) do
+    receive do
+*     :inc ->
+*       counter(number + 1)
+
+      {:get, caller} ->
+        send(caller, number)
+        counter(number)
+    end
+  end
+end
+
+
+pid = spawn(State, :counter, [0])
+```
+
+---
+count: false
+
+## Ahora deberíamos poder entender este código
+
+```elixir
+# state.ex
+
+defmodule State do
+  def counter(number) do
+    receive do
+      :inc ->
+        counter(number + 1)
+
+*     {:get, caller} ->
+*       send(caller, number)
+*       counter(number)
+    end
+  end
+end
+
+
+pid = spawn(State, :counter, [0])
+```
+
+---
+class: center, middle
+
+# Ya entendemos cómo se relacionan los procesos con mantener el estado
+
+---
+class: center, middle
+
+# ¿Tenemos que hacer esto cada vez?
+
+---
+# Algunas abstracciones
+
+- Agents
+- GenServers
+- Tasks
+
+---
+## Agents
+
+```elixir
+# agent.ex
+
+{:ok, agent} = Agent.start(fn -> [] end)
+
+Agent.update(agent, fn old_state -> ["eggs" | old_state] end)
+
+Agent.get(agent, fn state -> state end)
+# -> ["eggs"]
+```
+
+---
+count: false
+
+## Agents
+
+```elixir
+# agent.ex
+
+*{:ok, agent} = Agent.start(fn -> [] end)
+
+Agent.update(agent, fn old_state -> ["eggs" | old_state] end)
+
+Agent.get(agent, fn state -> state end)
+# -> ["eggs"]
+```
+
+---
+count: false
+
+## Agents
+
+```elixir
+# agent.ex
+
+{:ok, agent} = Agent.start(fn -> [] end)
+
+*Agent.update(agent, fn old_state -> ["eggs" | old_state] end)
+
+Agent.get(agent, fn state -> state end)
+# -> ["eggs"]
+```
+
+---
+count: false
+
+## Agents
+
+```elixir
+# agent.ex
+
+{:ok, agent} = Agent.start(fn -> [] end)
+
+Agent.update(agent, fn old_state -> ["eggs" | old_state] end)
+
+*Agent.get(agent, fn state -> state end)
+*# -> ["eggs"]
+```
+
+---
+## Agents
+
+```elixir
+{:ok, agent} = Agent.start(fn -> ["milk", "eggs"] end)
+
+Agent.get(agent, fn state -> Enum.reverse(state) end)
+# -> ["eggs", "milk"]
+
+Agent.get(agent, fn state -> state end) |> Enum.reverse
+# -> ["eggs", "milk"]
+```
+
+---
+count: false
+
+## Agents
+
+```elixir
+{:ok, agent} = Agent.start(fn -> ["milk", "eggs"] end)
+
+*Agent.get(agent, fn state -> Enum.reverse(state) end)
+*# -> ["eggs", "milk"]
+
+Agent.get(agent, fn state -> state end) |> Enum.reverse
+# -> ["eggs", "milk"]
+```
+
+---
+count: false
+
+## Agents
+
+```elixir
+{:ok, agent} = Agent.start(fn -> ["milk", "eggs"] end)
+
+Agent.get(agent, fn state -> Enum.reverse(state) end)
+# -> ["eggs", "milk"]
+
+*Agent.get(agent, fn state -> state end) |> Enum.reverse
+*# -> ["eggs", "milk"]
+```
+
+---
+# Implementando un contador con Agents
+
+```elixir
+# counter.ex
+
+defmodule Counter do
+  def start(initial_value) do
+    {:ok, pid} = Agent.start(fn -> initial_value end)
+    pid
+  end
+
+  def value(agent) do
+    Agent.get(agent, fn state -> state end)
+  end
+
+  def increment(pid) do
+    Agent.update(pid, fn state -> state + 1 end)
+  end
+end
+```
+
+---
+class: center, middle
+
+# Implementación naive
+
+`naive_agent.ex`
+
+
+---
+## GenServers
+
+```elixir
+defmodule Stack do
+  use GenServer
+
+  def init(initial_state \\ []) do
+    {:ok, initial_state}
+  end
+
+  def handle_cast({:put, item}, state) do
+    new_state = [item | state]
+    {:noreply, new_state}
+  end
+
+  def handle_call(:pop, _from, [ head | _ ] = state) do
+    {:reply, head, state}
+  end
+end
+
+{:ok, pid} = GenServer.start(Stack, [1,2,3])
+GenServer.cast(pid ,{:put, 4})
+GenServer.call(pid, :pop) # => 4
+GenServer.call(pid, :pop) # => 1
+```
+
+---
+## Task
+
+```elixir
+task = Task.async(fn -> :timer.sleep(5_000); 2 end)
+
+res = 5
+
+res + Task.await(task)
+#=> 7
+```
+
+
+---
+class: center, middle
+
+# ¡Bonus track!
+
+---
+## Nodos distribuidos
+
+`iex --sname node1@localhost`
+
+```elixir
+pid = Node.spawn(:node1@localhost, fn -> 1 + 2 end)
+
+:observer.start
+```
+
+
+
+---
+## Hot code reloading
+
+```elixir
+defmodule HotCode do
+  def counter(state) do
+    receive do
+      {:get, caller} ->
+        send(caller, state)
+        counter(state)
+
+      :inc ->
+        counter(state + 1)
+    end
+  end
+end
+```
+
+---
+count: false
+
+## Hot code reloading
+
+```elixir
+defmodule HotCode do
+  def counter(state) do
+    receive do
+      {:get, caller} ->
+        send(caller, state)
+        counter(state)
+
+      :inc ->
+        counter(state + 1)
+
+*     :update ->
+*       HotCode.counter(state)
+    end
+  end
+end
+```
+
+
+---
+class: center, middle
+
+# __¡Muchas gracias!__
+## ¿Preguntas?
+
+---
+### Referencias
+- [The Erlang Runtime System](https://blog.stenmans.org/theBeamBook/#_processes)
+- [Learn You Some Erlang for great good!](https://learnyousomeerlang.com/)
+- [Elixir Lang | Getting Started | Processes](https://elixir-lang.org/getting-started/processes.html)
+- [The Elixir programming language: Reliable microservices made easy](https://www.conf-micro.services/2019/papers/Microservices_2019_paper_5.pdf)
+- [A Guide to Process-oriented Programming in Elixir and OTP](https://www.toptal.com/elixir/process-oriented-programming-elixir-and-otp)
+
+</textarea>
+    <script src="https://remarkjs.com/downloads/remark-latest.min.js">
+    </script>
+    <script>
+      var slideshow = remark.create({
+	ratio: '4:3',
+	highlightStyle: 'gruvbox-dark',
+	highlightLines: true,
+      });
+    </script>
+  </body>
+</html>
